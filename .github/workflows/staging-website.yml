@@ -1,4 +1,5 @@
 name: Staging Website Deploy
+
 on:
   push:
     branches:
@@ -6,41 +7,30 @@ on:
 
 jobs:
   deploy:
-    name: SDK Website
+    name: Deploy to Staging
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v3
-      #        with:
-      #          persist-credentials: false
 
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
+      - name: Setup Node.js environment
+        uses: actions/setup-node@v3
         with:
-          profile: minimal
-          toolchain: nightly-2023-05-24
-          override: true
-          components: rustfmt, rust-src
+          node-version: '14'
 
-      - uses: actions/cache@v2
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-website-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Install and Build
+      - name: Install dependencies
         run: |
-          yarn
-          yarn build:all
-          cd website
-          yarn build
-        env:
-          CI: ""
+          yarn install --frozen-lockfile
+        working-directory: website
 
-      - name: Deploy
-        id: modified
+      - name: Build
+        run: |
+          yarn build:all
+          yarn build
+        working-directory: website
+
+      - name: Deploy to Staging
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -48,9 +38,6 @@ jobs:
           folder: website/dist
           clean-exclude: '["dev"]'
 
-      - name: Check step output
-        run: |
-          [[ \
-          ${{steps.modified.outputs.deployment-status}} = skipped || \
-          ${{steps.modified.outputs.deployment-status}} = success \
-          ]]
+      - name: Check Deployment Status
+        if: ${{ steps.modified.outputs.deployment-status != 'skipped' && steps.modified.outputs.deployment-status != 'success' }}
+        run: echo "Deployment failed"
